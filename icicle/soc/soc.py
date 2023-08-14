@@ -3,38 +3,63 @@ from amaranth_soc.csr.bus import Decoder as CSRDecoder
 from amaranth_soc.csr.wishbone import WishboneCSRBridge
 from amaranth_soc.wishbone import Arbiter as WishboneArbiter, Decoder as WishboneDecoder
 
+
 from icicle.cpu import CPU
 from icicle.soc.flash import Flash
 from icicle.soc.gpio import GPIO
 from icicle.soc.ice40_spram import ICE40SPRAM
 from icicle.soc.uart import UART
-
+from icicle.soc.enumeratable import EnumerateSoc
 
 class SystemOnChip(Elaboratable):
+    def __init__(self, peripherals=None, addr_width=30, data_width=32, granularity=8, features=["err"], reset_vector=0x00100000, trap_vector=0x00100000):
+        self.cpu = CPU(reset_vector, trap_vector)
+        self.flash = Flash(addr_width=22)
+        # self.peripherals = peripherals
+        self.ram = ICE40SPRAM()
+        self.peripherals = {
+            "leds": GPIO(numbers=range(3)),
+            "uart1": UART()
+        }
+        self.csr_decoder = CSRDecoder(addr_width=16, data_width=8)
+        for _name, peripheral in self.peripherals.items(): 
+            if peripheral.address is None:
+                peripheral.address = self.csr_decoder._map._next_addr
+            self.csr_decoder.add(peripheral.bus, addr=peripheral.address)
+        # self.csr_decoder.add(self.gpio.bus, addr=self.csr_decoder._map._next_addr)
+        # self.csr_decoder.add(self.uart.bus, addr=self.csr_decoder._map._next_addr)
+        self.bridge = WishboneCSRBridge(self.csr_decoder.bus, data_width=data_width)
+        self.decoder = WishboneDecoder(addr_width=addr_width, data_width=data_width, granularity=granularity, features=features)
+        self.decoder.add(self.flash.bus,         addr=0x00000000)
+        self.decoder.add(self.ram.bus,           addr=0x40000000)
+        self.decoder.add(self.bridge.wb_bus, addr=0x80000000)
+        self.arbiter = WishboneArbiter(addr_width=addr_width, data_width=data_width, granularity=granularity, features=features)
+        self.arbiter.add(self.cpu.ibus)
+        self.arbiter.add(self.cpu.dbus)
+
+        svd = EnumerateSoc("vendor", "socname", self)
+        svd.output("./soc.svd")
+
+        
     def elaborate(self, platform):
         m = Module()
 
-        cpu = m.submodules.cpu = CPU(reset_vector=0x00100000, trap_vector=0x00100000)
+        m.submodules.cpu = self.cpu
 
-        flash = m.submodules.flash = Flash(addr_width=22)
-        ram = m.submodules.ram = ICE40SPRAM()
+        m.submodules.flash = self.flash
+        m.submodules.ram = self.ram
 
-        gpio = m.submodules.gpio = GPIO(numbers=range(3))
-        uart = m.submodules.uart = UART()
+        for _name, peripheral in self.peripherals.items():
+            m.submodules += peripheral 
 
-        csr_decoder = m.submodules.csr_decoder = CSRDecoder(addr_width=16, data_width=8)
-        csr_decoder.add(gpio.bus, addr=0x0000)
-        csr_decoder.add(uart.bus, addr=0x0004)
-        csr_bridge = m.submodules.csr_bridge = WishboneCSRBridge(csr_decoder.bus, data_width=32)
+        m.submodules.csr_decoder = self.csr_decoder
+        m.submodules.csr_bridge = self.bridge
 
-        decoder = m.submodules.decoder = WishboneDecoder(addr_width=30, data_width=32, granularity=8, features=["err"])
-        decoder.add(flash.bus,         addr=0x00000000)
-        decoder.add(ram.bus,           addr=0x40000000)
-        decoder.add(csr_bridge.wb_bus, addr=0x80000000)
+        m.submodules.decoder = self.decoder
 
-        arbiter = m.submodules.arbiter = WishboneArbiter(addr_width=30, data_width=32, granularity=8, features=["err"])
-        arbiter.add(cpu.ibus)
-        arbiter.add(cpu.dbus)
-        m.d.comb += arbiter.bus.connect(decoder.bus)
+        m.submodules.arbiter = self.arbiter
+        m.d.comb += self.arbiter.bus.connect(self.decoder.bus)
 
         return m
+    
+

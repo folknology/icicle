@@ -3,8 +3,10 @@ from amaranth.lib.fifo import SyncFIFOBuffered
 from amaranth_soc.csr import Element, Multiplexer
 from amaranth_stdio.serial import AsyncSerial
 
+from icicle.soc.enumeratable import Enumeratable
 
-class UART(Elaboratable):
+
+class UART(Elaboratable, Enumeratable):
     def __init__(self, number=0, fifo_depth=513, default_baud=9600):
         self._clk_div_csr = Element(width=16, access="rw")
         self._status_csr = Element(width=2, access="r")
