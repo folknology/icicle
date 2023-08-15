@@ -17,8 +17,7 @@ class GPIO(Elaboratable, Enumeratable):
         self._mux = Multiplexer(addr_width=addr_width, data_width=8)
         self._mux.add(self._oe_csr)
         self._mux.add(self._i_csr)
-        self._mux.add(self._o_csr)
-
+        self._mux.add(self._o_csr)  
         self.bus = self._mux.bus
         self.numbers = numbers
 

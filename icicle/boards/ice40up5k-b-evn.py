@@ -6,6 +6,8 @@ from amaranth.build import Resource, Pins, Attrs
 from amaranth_boards.ice40_up5k_b_evn import ICE40UP5KBEVNPlatform
 
 from icicle.soc.soc import SystemOnChip
+from icicle.soc.gpio import GPIO
+from icicle.soc.uart import UART
 
 
 def main():
@@ -24,7 +26,11 @@ def main():
         Resource("gpio", 1, Pins("40"), Attrs(IO_STANDARD="SB_LVCMOS")),
         Resource("gpio", 2, Pins("41"), Attrs(IO_STANDARD="SB_LVCMOS")),
     ])
-    platform.build(SystemOnChip(), nextpnr_opts="--timing-allow-fail", do_program=True)
+    peripherals = {
+        "leds": GPIO(numbers=range(3)),
+        "uart1": UART()
+    }
+    platform.build(SystemOnChip(peripherals), nextpnr_opts="--timing-allow-fail", do_program=True)
 
 
 if __name__ == "__main__":

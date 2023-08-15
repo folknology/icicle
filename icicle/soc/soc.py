@@ -12,33 +12,41 @@ from icicle.soc.uart import UART
 from icicle.soc.enumeratable import EnumerateSoc
 
 class SystemOnChip(Elaboratable):
-    def __init__(self, peripherals=None, addr_width=30, data_width=32, granularity=8, features=["err"], reset_vector=0x00100000, trap_vector=0x00100000):
+    def __init__(self, peripherals=None, addr_width=30, data_width=32, granularity=8, features=["err"], flash_addr_width=22, ram_addr_width=17, reset_vector=0x00100000, trap_vector=0x00100000):
+        self.flash_size = 2**flash_addr_width
+        self.ram_size = 2**ram_addr_width
+        self.flash_offset = 0x00100000
+        self.memmap = (0x00000000, 0x40000000, 0x80000000)
         self.cpu = CPU(reset_vector, trap_vector)
-        self.flash = Flash(addr_width=22)
-        # self.peripherals = peripherals
+        self.flash = Flash(addr_width=flash_addr_width)
+        self.peripherals = peripherals
         self.ram = ICE40SPRAM()
-        self.peripherals = {
-            "leds": GPIO(numbers=range(3)),
-            "uart1": UART()
-        }
+
+        # TODO: remove this for external peripherap paramaterisation
+        if peripherals is None:
+            self.peripherals = {
+                "leds": GPIO(numbers=range(3)),
+                "uart1": UART()
+            }
+        
         self.csr_decoder = CSRDecoder(addr_width=16, data_width=8)
         for _name, peripheral in self.peripherals.items(): 
             if peripheral.address is None:
                 peripheral.address = self.csr_decoder._map._next_addr
             self.csr_decoder.add(peripheral.bus, addr=peripheral.address)
-        # self.csr_decoder.add(self.gpio.bus, addr=self.csr_decoder._map._next_addr)
-        # self.csr_decoder.add(self.uart.bus, addr=self.csr_decoder._map._next_addr)
+
         self.bridge = WishboneCSRBridge(self.csr_decoder.bus, data_width=data_width)
         self.decoder = WishboneDecoder(addr_width=addr_width, data_width=data_width, granularity=granularity, features=features)
-        self.decoder.add(self.flash.bus,         addr=0x00000000)
-        self.decoder.add(self.ram.bus,           addr=0x40000000)
-        self.decoder.add(self.bridge.wb_bus, addr=0x80000000)
+        self.decoder.add(self.flash.bus,     addr=self.memmap[0])
+        self.decoder.add(self.ram.bus,       addr=self.memmap[1])
+        self.decoder.add(self.bridge.wb_bus, addr=self.memmap[2])
         self.arbiter = WishboneArbiter(addr_width=addr_width, data_width=data_width, granularity=granularity, features=features)
         self.arbiter.add(self.cpu.ibus)
         self.arbiter.add(self.cpu.dbus)
 
-        svd = EnumerateSoc("vendor", "socname", self)
-        svd.output("./soc.svd")
+        SocSer = EnumerateSoc("vendor", "socname", self)
+        SocSer.svd_out("./soc.svd")
+        SocSer.mem_out("./")
 
         
     def elaborate(self, platform):
