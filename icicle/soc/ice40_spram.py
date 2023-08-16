@@ -2,9 +2,12 @@ from amaranth import *
 from amaranth_soc.memory import MemoryMap
 from amaranth_soc.wishbone import Interface
 
+from icicle.soc.enumeratable import Mappable
 
-class ICE40SPRAM(Elaboratable):
-    def __init__(self):
+class ICE40SPRAM(Elaboratable, Mappable):
+    def __init__(self, addr_width, address=0x40000000):
+        self.address = address
+        self.size = 2**addr_width
         self.bus = Interface(addr_width=15, data_width=32, granularity=8)
         memory_map = MemoryMap(addr_width=17, data_width=8)
         memory_map.add_resource(self, name="spram", size=2 ** memory_map.addr_width)

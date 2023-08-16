@@ -2,10 +2,10 @@ from amaranth import *
 from amaranth.utils import bits_for
 from amaranth_soc.csr import Element, Multiplexer
 
-from icicle.soc.enumeratable import Enumeratable
+from icicle.soc.enumeratable import Mappable
 
 
-class GPIO(Elaboratable, Enumeratable):
+class GPIO(Elaboratable, Mappable):
     def __init__(self, numbers, addr_width=None):
         self._oe_csr = Element(width=len(numbers), access="rw")
         self._i_csr = Element(width=len(numbers), access="r")

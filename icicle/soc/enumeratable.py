@@ -1,7 +1,8 @@
 from lxml import etree
-
-class Enumeratable:
+# TODO:change filename and class of this
+class Mappable:
     address = None
+    size = None
 
 class EnumerateSoc:
     def __init__(self, vendor, socname, soc):
@@ -31,7 +32,7 @@ class EnumerateSoc:
             peripheralElement = etree.SubElement(peripherals, peripheraltag)
             etree.SubElement(peripheralElement, "name").text = name
             etree.SubElement(peripheralElement,
-                             "baseAddress").text = hex(self.soc.memmap[2] + peripheral.address )
+                             "baseAddress").text = hex(peripheral.address )
             etree.SubElement(peripheralElement, "groupName").text = "PCSR"
 
             offset = 0
@@ -88,8 +89,8 @@ class EnumerateSoc:
                 links = lx.read() # read everything in the file
                 mx.seek(0) # rewind
                 mx.write(" MEMORY {\n")
-                mx.write(f'    FLASH (rx)      : ORIGIN = {hex(self.soc.flash_offset)}, LENGTH = {hex(self.soc.flash_size)}\n', )
-                mx.write(f'    RAM (xrw)       : ORIGIN = {hex(self.soc.memmap[1])}, LENGTH = {hex(self.soc.ram_size)}\n', )
+                mx.write(f'    FLASH (rx)      : ORIGIN = {hex(self.soc.reset_vector)}, LENGTH = {hex(self.soc.memory["flash"].size)}\n', )
+                mx.write(f'    RAM (xrw)       : ORIGIN = {hex(self.soc.memory["ram"].address)}, LENGTH = {hex(self.soc.memory["ram"].size)}\n', )
                 mx.write("}\n\n" + links)
 
             

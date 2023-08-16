@@ -9,44 +9,70 @@ from icicle.soc.flash import Flash
 from icicle.soc.gpio import GPIO
 from icicle.soc.ice40_spram import ICE40SPRAM
 from icicle.soc.uart import UART
-from icicle.soc.enumeratable import EnumerateSoc
 
 class SystemOnChip(Elaboratable):
-    def __init__(self, peripherals=None, addr_width=30, data_width=32, granularity=8, features=["err"], flash_addr_width=22, ram_addr_width=17, reset_vector=0x00100000, trap_vector=0x00100000):
-        self.flash_size = 2**flash_addr_width
-        self.ram_size = 2**ram_addr_width
-        self.flash_offset = 0x00100000
-        self.memmap = (0x00000000, 0x40000000, 0x80000000)
-        self.cpu = CPU(reset_vector, trap_vector)
-        self.flash = Flash(addr_width=flash_addr_width)
-        self.peripherals = peripherals
-        self.ram = ICE40SPRAM()
+    def __init__(self, peripherals=None, memory=None,
+                 addr_width=30, data_width=32, granularity=8, features=["err"], 
+                 peripheral_address=0x80000000, reset_vector=0x00100000, trap_vector=0x00100000
+                 ):
 
-        # TODO: remove this for external peripherap paramaterisation
-        if peripherals is None:
-            self.peripherals = {
-                "leds": GPIO(numbers=range(3)),
-                "uart1": UART()
-            }
+        self.peripheral_address = peripheral_address
+        self.reset_vector = reset_vector
+        self.cpu = CPU(reset_vector, trap_vector)
+        self.peripherals = peripherals
+        self.memory = memory
         
         self.csr_decoder = CSRDecoder(addr_width=16, data_width=8)
-        for _name, peripheral in self.peripherals.items(): 
-            if peripheral.address is None:
-                peripheral.address = self.csr_decoder._map._next_addr
-            self.csr_decoder.add(peripheral.bus, addr=peripheral.address)
-
+        self._configure_peripherals()
+        
         self.bridge = WishboneCSRBridge(self.csr_decoder.bus, data_width=data_width)
         self.decoder = WishboneDecoder(addr_width=addr_width, data_width=data_width, granularity=granularity, features=features)
-        self.decoder.add(self.flash.bus,     addr=self.memmap[0])
-        self.decoder.add(self.ram.bus,       addr=self.memmap[1])
-        self.decoder.add(self.bridge.wb_bus, addr=self.memmap[2])
+        self._configure_memory()
+        self.decoder.add(self.bridge.wb_bus, addr=self.peripheral_address)
         self.arbiter = WishboneArbiter(addr_width=addr_width, data_width=data_width, granularity=granularity, features=features)
         self.arbiter.add(self.cpu.ibus)
         self.arbiter.add(self.cpu.dbus)
 
-        SocSer = EnumerateSoc("vendor", "socname", self)
-        SocSer.svd_out("./soc.svd")
-        SocSer.mem_out("./")
+    def _configure_memory(self):
+        # TODO: remove this for external memory paramaterisation
+        if self.memory is None:
+            self.memory = {
+                "flash": Flash(addr_width=22),
+                "ram": ICE40SPRAM(addr_width=17)
+            }
+
+        for _name, memory in self.memory.items(): 
+            self.decoder.add(memory.bus, addr=memory.address)
+
+        print("Memory:")   
+        for name, memory in self.memory.items(): 
+            print(f'{name}: {hex(memory.address)}, {hex(memory.size)}')
+
+    
+    
+    def _configure_peripherals(self):
+        # TODO: remove this for external peripherap paramaterisation
+        if self.peripherals is None:
+            self.peripherals = {
+                "leds": GPIO(numbers=range(3)),
+                "uart0": UART(),
+            }
+
+        last_peripheral = None
+        for _name, peripheral in self.peripherals.items(): 
+            address = self.csr_decoder._map._next_addr
+            if peripheral.address is None:
+                peripheral.address = self.peripheral_address + address
+            if peripheral.size is None and last_peripheral is not None:
+                last_peripheral.size = peripheral.address - 1 - last_peripheral.address
+            
+            last_peripheral = peripheral
+            self.csr_decoder.add(peripheral.bus, addr=address)
+        last_peripheral.size = self.peripheral_address + self.csr_decoder._map._next_addr - 1 - last_peripheral.address
+        
+        print("Peripherals:")
+        for name, peripheral in self.peripherals.items(): 
+            print(f'{name}: {hex(peripheral.address)}, {hex(peripheral.size)}')
 
         
     def elaborate(self, platform):
@@ -54,8 +80,10 @@ class SystemOnChip(Elaboratable):
 
         m.submodules.cpu = self.cpu
 
-        m.submodules.flash = self.flash
-        m.submodules.ram = self.ram
+        # m.submodules.flash = self.flash
+        # m.submodules.ram = self.ram
+        for _name, memory in self.memory.items():
+            m.submodules +=  memory
 
         for _name, peripheral in self.peripherals.items():
             m.submodules += peripheral 
