@@ -5,13 +5,7 @@ from argparse import ArgumentParser
 from amaranth.build import Resource, Pins, Attrs
 from amaranth_boards.ice40_up5k_b_evn import ICE40UP5KBEVNPlatform
 
-from icicle.soc.enumeratable import EnumerateSoc
-from icicle.soc.ice40_spram import ICE40SPRAM
-from icicle.soc.flash import Flash
-from icicle.soc.soc import SystemOnChip
-from icicle.soc.gpio import GPIO
-from icicle.soc.uart import UART
-
+from icicle.soc.enumeratable import EnumerateSoc, GenSoc, FlashMapped, SpramMapped, GpioMapped, UartMapped
 
 def main():
     parser = ArgumentParser()
@@ -31,15 +25,15 @@ def main():
     ])
 
     peripherals = {
-        "leds": GPIO(numbers=range(3)),
-        "uart0": UART()
+        "leds": GpioMapped(numbers=range(3)),
+        "uart0": UartMapped()
     }
     memory = {
-        "flash": Flash(addr_width=22),
-        "ram": ICE40SPRAM(addr_width=17)
+        "flash": FlashMapped(addr_width=22),
+        "ram": SpramMapped(addr_width=17)
     }
 
-    soc = SystemOnChip(peripherals, memory)
+    soc = GenSoc(peripherals, memory)
     SocSer = EnumerateSoc("vendor", "socname", soc)
     SocSer.svd_out("./soc.svd")
     SocSer.mem_out("./")

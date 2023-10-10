@@ -20,7 +20,7 @@ system, though there are some significant differences.
 * Separate [Wishbone][wishbone] instruction and data memory buses
 
 ## Microarchitecture
-
+call mkdp#util#install()
 Icicle uses a 6-stage pipeline, similar to a
 [classic RISC pipeline][classic-risc]. The main differences are summarized
 below:

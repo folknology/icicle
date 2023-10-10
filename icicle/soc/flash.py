@@ -4,14 +4,10 @@ from amaranth import *
 from amaranth_soc.memory import MemoryMap
 from amaranth_soc.wishbone import Interface
 
-from icicle.soc.enumeratable import Mappable
-
-class Flash(Elaboratable, Mappable):
-    def __init__(self, addr_width, number=0, address=0x00000000, offset=0x00100000):
+class Flash(Elaboratable):
+    def __init__(self, addr_width, number=0):
         self.addr_width = addr_width
         self.number = number
-        self.address = address
-        self.size = 2**addr_width
 
         self.bus = Interface(addr_width=addr_width, data_width=32, granularity=8, features=["err"])
         memory_map = MemoryMap(addr_width=addr_width + 2, data_width=8)
